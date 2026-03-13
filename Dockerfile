@@ -5,7 +5,8 @@
 FROM --platform=$TARGETOS/$TARGETARCH node:22-alpine
 WORKDIR /app
 COPY . ./
-RUN yarn install --frozen-lockfile \
+RUN mkdir -p public/assets \
+    && yarn install --frozen-lockfile \
     && yarn run build:production
 
 # Stage 1:
@@ -14,9 +15,10 @@ FROM --platform=$TARGETOS/$TARGETARCH php:8.3-fpm-alpine
 WORKDIR /app
 COPY . ./
 COPY --from=0 /app/public/assets ./public/assets
-RUN apk add --no-cache --update ca-certificates dcron curl git supervisor tar unzip nginx libpng-dev libxml2-dev libzip-dev certbot certbot-nginx \
+RUN apk add --no-cache --update ca-certificates dcron curl git supervisor tar unzip nginx \
+        libpng-dev libxml2-dev libzip-dev libpq-dev certbot certbot-nginx \
     && docker-php-ext-configure zip \
-    && docker-php-ext-install bcmath gd pdo_mysql zip \
+    && docker-php-ext-install bcmath gd pdo_pgsql pgsql zip \
     && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
     && cp .env.example .env \
     && mkdir -p bootstrap/cache/ storage/logs storage/framework/sessions storage/framework/views storage/framework/cache \
