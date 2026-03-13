@@ -23,7 +23,7 @@ RUN apk add --no-cache --update ca-certificates dcron curl git supervisor tar un
     && cp .env.example .env \
     && mkdir -p bootstrap/cache/ storage/logs storage/framework/sessions storage/framework/views storage/framework/cache \
     && chmod 777 -R bootstrap storage \
-    && composer install --no-dev --optimize-autoloader \
+    && composer install --no-dev --optimize-autoloader --ignore-platform-req=ext-pdo_mysql \
     && rm -rf .env bootstrap/cache/*.php \
     && mkdir -p /app/storage/logs/ \
     && chown -R nginx:nginx .
