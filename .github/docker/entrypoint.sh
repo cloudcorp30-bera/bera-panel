@@ -139,6 +139,11 @@ else
   echo "Database already seeded — skipping."
 fi
 
+## Validate PHP-FPM config before handing off to supervisord.
+## Any error here is printed to the Railway/Docker log.
+echo "Testing PHP-FPM configuration..."
+/usr/local/sbin/php-fpm --test 2>&1 && echo "PHP-FPM config OK." || echo "WARNING: PHP-FPM config test FAILED — supervisord will still attempt to start it."
+
 ## start cronjobs for the queue
 echo "Starting cron jobs."
 crond -L /var/log/crond -l 5
