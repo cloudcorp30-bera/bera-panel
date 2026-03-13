@@ -75,10 +75,9 @@ EOF
   ln -s /app/var/.env /app/
 fi
 
-## Railway (and other PaaS platforms) inject $PORT — nginx must listen on that port.
-## Default to 80 if PORT is not set (local Docker / bare-metal installs).
-NGINX_PORT=${PORT:-80}
-echo "Nginx will listen on port $NGINX_PORT."
+## nginx is pre-configured to listen on ports 80 and 8080 (covers most Railway/Docker scenarios).
+## If Railway assigns a different $PORT, it is added as a third listener below.
+echo "Railway PORT env var: ${PORT:-not set}"
 
 echo "Checking if https is required."
 if [ -f /etc/nginx/http.d/panel.conf ]; then
@@ -106,9 +105,12 @@ else
   rm -rf /etc/nginx/http.d/default.conf
 fi
 
-## Patch the nginx listen port to match $PORT (idempotent — safe to run on every start).
-sed -i "s/listen [0-9]*;/listen $NGINX_PORT;/g" /etc/nginx/http.d/panel.conf
-echo "Nginx listen port set to $NGINX_PORT."
+## If Railway assigns a port other than 80 or 8080, add it as an extra listen directive.
+if [ -n "$PORT" ] && [ "$PORT" != "80" ] && [ "$PORT" != "8080" ]; then
+  echo "Adding extra nginx listener for Railway PORT=$PORT..."
+  sed -i "s/listen 8080;/listen 8080; listen $PORT;/g" /etc/nginx/http.d/panel.conf
+fi
+echo "Nginx listening on: port 80, port 8080${PORT:+, port $PORT}."
 
 if [ -z "$DB_PORT" ]; then
   echo "DB_PORT not specified, defaulting to 5432 (PostgreSQL)"
