@@ -1,9 +1,16 @@
-#!/bin/ash -e
+#!/bin/ash
 cd /app
 
-mkdir -p /var/log/panel/logs/ /var/log/supervisord/ /var/log/nginx/ /var/log/php7/ \
-  && chmod 777 /var/log/panel/logs/ \
-  && ([ -L /var/log/panel/logs ] || ln -s /app/storage/logs/ /var/log/panel/)
+## Fix 1: Only create /var/log/panel/ (not /var/log/panel/logs/ as a directory)
+## so the symlink can be created at that path
+mkdir -p /var/log/supervisord/ /var/log/nginx/ /var/log/php7/ /var/log/panel/
+
+## Create symlink only if it doesn't already exist
+if [ ! -e /var/log/panel/logs ]; then
+  ln -s /app/storage/logs/ /var/log/panel/logs
+fi
+
+chmod 777 /var/log/panel/
 
 ## check for .env file and generate app keys if missing
 if [ -f /app/var/.env ]; then
@@ -107,9 +114,21 @@ do
   sleep 1
 done
 
-## make sure the db is set up
+## Run migrations (idempotent — safe to run on every start)
 echo "Migrating database..."
-php artisan migrate --seed --force
+php artisan migrate --force
+
+## Fix 2: Seed only if this is a fresh database (nests table is empty).
+## The EggSeeder fails with PostgreSQL 25P02 when run against existing data,
+## so we skip seeding if the database already has nest records.
+echo "Checking if initial seeding is needed..."
+NEEDS_SEED=$(php artisan tinker --no-interaction --execute="echo (\App\Models\Nest::count() == 0 ? 'yes' : 'no');" 2>/dev/null | tail -1)
+if [ "$NEEDS_SEED" = "yes" ]; then
+  echo "Fresh database — running seeders..."
+  php artisan db:seed --force || echo "WARNING: Some seeders failed. Panel may start with limited egg configurations."
+else
+  echo "Database already seeded — skipping."
+fi
 
 ## start cronjobs for the queue
 echo "Starting cron jobs."
