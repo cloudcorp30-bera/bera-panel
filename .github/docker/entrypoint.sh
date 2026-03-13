@@ -3,7 +3,7 @@ cd /app
 
 mkdir -p /var/log/panel/logs/ /var/log/supervisord/ /var/log/nginx/ /var/log/php7/ \
   && chmod 777 /var/log/panel/logs/ \
-  && ln -s /app/storage/logs/ /var/log/panel/
+  && ([ -L /var/log/panel/logs ] || ln -s /app/storage/logs/ /var/log/panel/)
 
 ## check for .env file and generate app keys if missing
 if [ -f /app/var/.env ]; then
@@ -18,7 +18,7 @@ else
   ## Generate APP_KEY if not supplied
   if [ -z "$APP_KEY" ]; then
      echo "Generating APP_KEY."
-     APP_KEY="base64:$(cat /dev/urandom | tr -dc 'a-zA-Z0-9+/=' | fold -w 32 | head -n 1)"
+     APP_KEY="base64:$(openssl rand -base64 32)"
      echo "Generated app key: $APP_KEY"
   fi
 
