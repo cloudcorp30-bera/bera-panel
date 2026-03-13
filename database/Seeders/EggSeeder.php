@@ -64,19 +64,33 @@ class EggSeeder extends Seeder
             }
 
             $decoded = json_decode(file_get_contents($file->getRealPath()), true, 512, JSON_THROW_ON_ERROR);
-            $file = new UploadedFile($file->getPathname(), $file->getFilename(), 'application/json');
+            $uploadedFile = new UploadedFile($file->getPathname(), $file->getFilename(), 'application/json');
 
             $egg = $nest->eggs()
                 ->where('author', $decoded['author'])
                 ->where('name', $decoded['name'])
                 ->first();
 
-            if ($egg instanceof Egg) {
-                $this->updateImporterService->handle($egg, $file);
-                $this->command->info('Updated ' . $decoded['name']);
-            } else {
-                $this->importerService->handle($file, $nest->id);
-                $this->command->comment('Created ' . $decoded['name']);
+            try {
+                if ($egg instanceof Egg) {
+                    $this->updateImporterService->handle($egg, $uploadedFile);
+                    $this->command->info('Updated ' . $decoded['name']);
+                } else {
+                    $this->importerService->handle($uploadedFile, $nest->id);
+                    $this->command->comment('Created ' . $decoded['name']);
+                }
+            } catch (\Throwable $e) {
+                // On PostgreSQL a failed statement inside a transaction aborts the whole
+                // transaction (SQLSTATE 25P02). Roll back and reconnect so subsequent
+                // eggs can still be processed.
+                try {
+                    \Illuminate\Support\Facades\DB::rollBack();
+                } catch (\Throwable $rb) {
+                    // Ignore rollback errors — connection may already be clean.
+                }
+                \Illuminate\Support\Facades\DB::reconnect();
+
+                $this->command->error('Failed to import/update "' . $decoded['name'] . '": ' . $e->getMessage());
             }
         }
 
